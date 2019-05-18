@@ -5,6 +5,8 @@ from django.contrib.auth.models import (
     AbstractBaseUser, PermissionsMixin, BaseUserManager, User
 )
 from import_export import resources
+from django.core.exceptions import ObjectDoesNotExist
+from easy_thumbnails.fields import ThumbnailerImageField
 
 
 # пользователь
@@ -43,6 +45,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_admin = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
 
+    contests = models.ManyToManyField('Contest', through='Participate')
+
     objects = UserManager()
 
     USERNAME_FIELD = 'email'
@@ -66,13 +70,6 @@ class UserResources(resources.ModelResource):
 
 # олимпиада
 class Contest(models.Model):
-    id = models.OneToOneField(
-        'Olympiada',
-        on_delete=models.CASCADE,
-        verbose_name="Олимпиада",
-        primary_key=True,
-        unique=True
-    )
     name = models.CharField(max_length=100, blank=False)
     start_at = models.DateTimeField(default=timezone.now)
     duration = models.DateTimeField(default=timezone.now)
@@ -86,14 +83,49 @@ class Contest(models.Model):
         verbose_name_plural = 'олимпиады'
 
 
-class Olympiada(models.Model):
-    id = models.AutoField(primary_key=True, unique=True)
-    full_name = models.CharField(max_length=100, blank=False)
-    text = models.TextField(blank=False, help_text="Текст олимпиады, включая входные и выходные данные")
+class Task(models.Model):
+    contest = models.ForeignKey(
+        'Contest',
+        on_delete=models.CASCADE,
+        verbose_name="Олимпиада"
+    )
+    header = models.CharField(max_length=100, blank=False)
+    body = models.TextField(blank=False, help_text="Текст задачи, включая входные и выходные данные")
+    efforts_available = models.IntegerField(default=5, blank=False)
+    picture = ThumbnailerImageField(upload_to='images/avatars', null=True, blank=True)
 
     def __str__(self):
-        return self.full_name
+        return self.header
 
     class Meta:
         verbose_name = 'задача'
         verbose_name_plural = 'задачи'
+
+
+class Example(models.Model):
+    Task = models.ForeignKey('Task', on_delete=models.CASCADE, verbose_name="Тест")
+    input = models.TextField(blank=False, help_text="Входные данные")
+    output = models.TextField(blank=False, help_text="Выходные данные")
+
+
+class Efforts(models.Model):
+    user_id = models.ForeignKey('User', on_delete=models.CASCADE)
+    task_id = models.ForeignKey('Task', on_delete=models.CASCADE)
+
+    solution = models.TextField(blank=False, help_text="Текст задачи, включая входные и выходные данные")
+    solution_status = models.IntegerField(default=0, blank=False)
+    test_passed = models.IntegerField(default=0)
+    tests_count = models.IntegerField(default=0)
+
+
+class Participate(models.Model):
+    user_id = models.ForeignKey('User', on_delete=models.CASCADE)
+    contest_id = models.ForeignKey('Contest', on_delete=models.CASCADE)
+
+
+def is_participated(user, contest):
+    try:
+        data = Participate.objects.get(user_id=user.id, contest_id=contest.id)
+    except ObjectDoesNotExist:
+        data = None
+    return data is not None

@@ -81,9 +81,14 @@ class ContestAdmin(admin.ModelAdmin):
     model = Contest
 
 
+class TestsInTask(admin.TabularInline):
+    model = Example
+
+
 class OlympiadaAdmin(admin.ModelAdmin):
-    model = Olympiada
+    model = Task
+    inlines = [TestsInTask]
 
 
 admin.site.register(Contest, ContestAdmin)
-admin.site.register(Olympiada, OlympiadaAdmin)
+admin.site.register(Task, OlympiadaAdmin)

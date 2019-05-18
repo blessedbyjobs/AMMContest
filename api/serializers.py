@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Contest
+from .models import User, Contest, Task
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -16,3 +16,9 @@ class ContestSerializer(serializers.ModelSerializer):
     class Meta(object):
         model = Contest
         fields = ('id', 'name', 'start_at', 'duration')
+
+
+class TaskSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = Task
+        fields = ('id', 'header', 'body', 'efforts_available', 'picture')

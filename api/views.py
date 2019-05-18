@@ -6,21 +6,26 @@ from rest_framework.status import (
     HTTP_401_UNAUTHORIZED,
     HTTP_403_FORBIDDEN,
     HTTP_200_OK,
-    HTTP_201_CREATED
+    HTTP_201_CREATED,
+    HTTP_202_ACCEPTED,
+    HTTP_404_NOT_FOUND
 )
 from rest_framework import viewsets
+from django.http import JsonResponse
 from rest_framework.response import Response
+from rest_framework.renderers import JSONRenderer
 from rest_framework.views import APIView
 from rest_framework.generics import RetrieveUpdateAPIView
 import jwt
 from rest_framework_jwt import *
 from django.utils import timezone
-from .serializers import UserSerializer, ContestSerializer
-from .models import User, Contest
+from .serializers import UserSerializer, ContestSerializer, TaskSerializer
+from .models import User, Contest, Participate, is_participated, Task
 from Olympiada.settings import SECRET_KEY
 from django.contrib.auth.signals import user_logged_in
 from rest_framework_jwt.utils import jwt_payload_handler
 from .permissions import IsAdminOrSelf
+from django.core.exceptions import ObjectDoesNotExist
 
 
 class CreateUserAPIView(APIView):
@@ -106,20 +111,72 @@ def get_all_contests(request):
                 contest['start_at'] = serializer.data['start_at']
                 contest['duration'] = serializer.data['duration']
                 data.append(contest)
-    return Response(data, status=HTTP_200_OK)
+    return JsonResponse(data, safe=False, status=HTTP_200_OK)
 
 
 @api_view(['GET'])
 @permission_classes((IsAuthenticated,))
 def get_contest(request, contest_id):
-    contests = Contest.objects.get(id=contest_id)
-    contest = {}
+    try:
+        contests = Contest.objects.get(id=contest_id)
+        contest = {}
 
-    if contests.is_active:
-        if contests.duration.timestamp() > timezone.now().timestamp():
-            serializer = ContestSerializer(contests, many=False)
-            contest['id'] = serializer.data['id']
-            contest['name'] = serializer.data['name']
-            contest['start_at'] = serializer.data['start_at']
-            contest['duration'] = serializer.data['duration']
-    return Response(contest, status=HTTP_200_OK)
+        if contests.is_active:
+            if contests.duration.timestamp() > timezone.now().timestamp():
+                serializer = ContestSerializer(contests, many=False)
+                contest['id'] = serializer.data['id']
+                contest['name'] = serializer.data['name']
+                contest['start_at'] = serializer.data['start_at']
+                contest['duration'] = serializer.data['duration']
+        return JsonResponse(contest, safe=False, status=HTTP_200_OK)
+    except ObjectDoesNotExist:
+        return JsonResponse([], safe=False)
+
+
+@api_view(['POST'])
+@permission_classes((IsAuthenticated,))
+def participate(request, contest_id):
+    try:
+        contest = Contest.objects.get(id=contest_id)
+
+        if is_participated(user=request.user, contest=contest):
+            return Response(status=HTTP_202_ACCEPTED)
+        else:
+            Participate.objects.create(user_id=request.user, contest_id=contest)
+            return Response(status=HTTP_200_OK)
+    except ObjectDoesNotExist:
+        return Response(status=HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET'])
+@permission_classes((IsAuthenticated,))
+def get_tasks(request, contest_id):
+    tasks = Task.objects.filter(contest=contest_id)
+    all_tasks = []
+
+    for x in tasks:
+        task = {}
+        serializer = TaskSerializer(x, many=False)
+        task['id'] = serializer.data['id']
+        task['header'] = serializer.data['header']
+        task['body'] = serializer.data['body']
+        task['efforts_available'] = serializer.data['efforts_available']
+        task['picture'] = serializer.data['picture']
+        all_tasks.append(task)
+    return JsonResponse(all_tasks, content_type="application/json", safe=False)
+
+
+@api_view(['GET'])
+@permission_classes((IsAuthenticated,))
+def get_task(request, contest_id, task_id):
+    tasks = Task.objects.filter(contest=contest_id).get(id=task_id)
+
+    task = {}
+    serializer = TaskSerializer(tasks, many=False)
+    task['id'] = serializer.data['id']
+    task['header'] = serializer.data['header']
+    task['body'] = serializer.data['body']
+    task['efforts_available'] = serializer.data['efforts_available']
+    task['picture'] = serializer.data['picture']
+
+    return JsonResponse(task, safe=False, status=HTTP_200_OK)

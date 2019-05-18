@@ -38,9 +38,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'rest_framework.authtoken',
     'api',
-    'import_export'
+    'import_export',
+    'easy_thumbnails'
 ]
 
 MIDDLEWARE = [
