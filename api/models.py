@@ -103,16 +103,20 @@ class Task(models.Model):
 
 
 class Example(models.Model):
-    Task = models.ForeignKey('Task', on_delete=models.CASCADE, verbose_name="Тест")
+    task = models.ForeignKey('Task', on_delete=models.CASCADE, verbose_name="Тест")
     input = models.TextField(blank=False, help_text="Входные данные")
     output = models.TextField(blank=False, help_text="Выходные данные")
+
+    def testing(self, input_data):
+        return self.output.lower() == input_data.lower()
 
 
 class Efforts(models.Model):
     user_id = models.ForeignKey('User', on_delete=models.CASCADE)
     task_id = models.ForeignKey('Task', on_delete=models.CASCADE)
 
-    solution = models.TextField(blank=False, help_text="Текст задачи, включая входные и выходные данные")
+    date_posted = models.DateTimeField(default=timezone.now)
+    solution = models.TextField(blank=False)
     solution_status = models.IntegerField(default=0, blank=False)
     test_passed = models.IntegerField(default=0)
     tests_count = models.IntegerField(default=0)

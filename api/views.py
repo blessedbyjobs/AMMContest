@@ -20,7 +20,7 @@ import jwt
 from rest_framework_jwt import *
 from django.utils import timezone
 from .serializers import UserSerializer, ContestSerializer, TaskSerializer
-from .models import User, Contest, Participate, is_participated, Task
+from .models import User, Contest, Participate, is_participated, Task, Efforts, Example
 from Olympiada.settings import SECRET_KEY
 from django.contrib.auth.signals import user_logged_in
 from rest_framework_jwt.utils import jwt_payload_handler
@@ -180,3 +180,74 @@ def get_task(request, contest_id, task_id):
     task['picture'] = serializer.data['picture']
 
     return JsonResponse(task, safe=False, status=HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes((IsAuthenticated,))
+def send(request, contest_id, task_id):
+    try:
+        task = Task.objects.filter(contest=contest_id).get(id=task_id)
+        effort = Efforts.objects.filter(user_id=request.user.id, task_id=task_id)
+
+        if effort.count() <= task.efforts_available:
+            tests = Example.objects.filter(task=task)
+            for test in tests:
+                if test.testing(input_data=request.data['solution']):
+                    Efforts.objects.create(
+                        user_id=request.user,
+                        task_id=task,
+                        solution=request.data['solution'],
+                        solution_status=1,
+                        test_passed=effort.count() + 1,
+                        tests_count=task.efforts_available
+                    )
+                else:
+                    Efforts.objects.create(
+                        user_id=request.user,
+                        task_id=task,
+                        solution=request.solution,
+                        solution_status=0,
+                        test_passed=effort.count(),
+                        tests_count=task.efforts_available
+                    )
+            json = {
+                "message": "Решение принято"
+            }
+            return JsonResponse(json, safe=False, status=HTTP_202_ACCEPTED)
+        else:
+            json = {
+                "message": "Превышено максимальное число попыток"
+            }
+            return JsonResponse(json, safe=False, status=HTTP_202_ACCEPTED)
+    except ObjectDoesNotExist:
+        json = {
+            "message": "Не существует такой задачи"
+        }
+        return JsonResponse(json, safe=False, status=HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET'])
+@permission_classes((IsAuthenticated,))
+def my_results(request, contest_id, task_id):
+    try:
+        task = Task.objects.filter(contest=contest_id).get(id=task_id)
+        efforts = Efforts.objects.filter(user_id=request.user.id, task_id=task_id)
+
+        data = []
+        for effort in efforts:
+            json = {
+                "id": task.id,
+                "date_posted": effort.date_posted,
+                "progress": {
+                    "code": effort.solution_status,
+                    "test_passed": effort.test_passed,
+                    "test_count": task.efforts_available
+                }
+            }
+            data.append(json)
+        return JsonResponse(data, safe=False, status=HTTP_202_ACCEPTED)
+    except ObjectDoesNotExist:
+        json = {
+            "message": "Не существует такой задачи"
+        }
+        return JsonResponse(json, safe=False, status=HTTP_404_NOT_FOUND)
