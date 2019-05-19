@@ -40,7 +40,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'api',
     'import_export',
-    'easy_thumbnails'
+    'easy_thumbnails',
+    'import_export'
 ]
 
 MIDDLEWARE = [
